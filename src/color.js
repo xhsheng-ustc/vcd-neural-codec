@@ -60,6 +60,33 @@ export function yuv444ToRgba(frame, width, videoHeight) {
   return rgba;
 }
 
+export function yuv420Psnr(original, reconstructed, width, videoHeight) {
+  const stride = width * original.dims[2];
+  const squared = [0, 0, 0];
+  for (let row = 0; row < videoHeight; row++) {
+    for (let col = 0; col < width; col++) {
+      const p = row * width + col;
+      const yDiff = original.data[p] - reconstructed.data[p];
+      squared[0] += yDiff * yDiff;
+      if ((row & 1) || (col & 1)) continue;
+      for (let plane = 1; plane < 3; plane++) {
+        const offset = plane * stride + p;
+        const reference = original.data[offset];
+        const recovered = (reconstructed.data[offset] +
+          reconstructed.data[offset + 1] +
+          reconstructed.data[offset + width] +
+          reconstructed.data[offset + width + 1]) * 0.25;
+        const difference = reference - recovered;
+        squared[plane] += difference * difference;
+      }
+    }
+  }
+  return squared.map((error, plane) => {
+    const samples = width * videoHeight / (plane ? 4 : 1);
+    return error === 0 ? Infinity : -10 * Math.log10(error / samples);
+  });
+}
+
 export function syntheticRgba(width, height, index) {
   const rgba = new Uint8ClampedArray(width * height * 4);
   for (let row = 0; row < height; row++) {

@@ -6,6 +6,7 @@
   <meta name="description" content="Run the VCD neural video codec entirely in your browser.">
   <title>VCD Neural Video Codec</title>
   <link rel="stylesheet" href="./src/style.css">
+  <link rel="stylesheet" href="./src/comparison.css">
 </head>
 <body>
   <header class="topbar"><div class="brand"><span class="mark">V</span><div><strong>VCD Codec</strong><small>Neural video coding · Browser demo</small></div></div><span class="tag">Runs in your browser</span></header>
@@ -13,10 +14,39 @@
     <section class="intro"><div><p class="eyebrow">LIVE CODEC LAB</p><h1>Watch your video make a round trip through the bitstream</h1><p>Camera capture → YUV conversion → neural I/P coding and rANS compression → bitstream decoding → reconstructed video. Processing stays in your browser.</p></div><div class="statusbox"><span id="dot" class="dot"></span><span id="status">Loading model</span></div></section>
     <section class="video-grid">
       <article class="video-card"><div class="card-heading"><h2>Camera input</h2><span id="source-tag">Camera off</span></div><div class="stage"><video id="camera" autoplay muted playsinline hidden></video><canvas id="input-view" width="640" height="360"></canvas><span id="source-size" class="corner">SOURCE · 640 × 360</span></div></article>
-      <article class="video-card"><div class="card-heading"><h2>Decoded video</h2><span id="frame-tag">Waiting for first frame</span></div><div class="stage"><canvas id="output-view" width="640" height="360"></canvas><span id="decoded-size" class="corner">DECODED · 640 × 360</span></div></article>
+      <article class="video-card"><div class="card-heading"><h2>Our decoded video</h2><span id="frame-tag">Waiting for first frame</span></div><div class="stage"><canvas id="output-view" width="640" height="360"></canvas><span id="decoded-size" class="corner">DECODED · 640 × 360</span></div></article>
+      <article class="video-card hidden" id="comparison-card"><div class="card-heading"><h2 id="comparison-title">Comparison</h2><span id="compare-status">Waiting</span></div><div class="stage"><canvas id="comparison-view" width="640" height="360"></canvas><span id="comparison-size" class="corner">COMPARISON · 640 × 360</span></div></article>
     </section>
     <section class="toolbar"><div class="buttons"><button id="camera-start" class="primary">Start camera</button><button id="camera-stop" disabled>Stop camera</button></div></section>
-    <section class="lower"><div class="panel settings"><h2>Codec settings</h2><label>Video resolution<select id="resolution"><option value="360">360p · 640 × 360</option><option value="540">540p · 960 × 540</option><option value="720">720p · 1280 × 720</option><option value="1080">1080p · 1920 × 1080</option></select></label><label>Compute device<select id="backend"><option value="webgpu">GPU · WebGPU</option><option value="wasm">CPU · WebAssembly</option></select></label><label>I-frame QP <output id="qpi-value">63</output><input id="qpi" type="range" min="0" max="63" value="63"></label><label>P-frame QP <output id="qpp-value">63</output><input id="qpp" type="range" min="0" max="63" value="63"></label><label>I-frame interval (frames)<input id="period" type="number" min="1" max="3000" value="150"></label><p class="fine">Higher resolutions require more GPU memory and may run below real-time speed. Changing resolution or compute device reloads the model.</p></div><div class="panel metrics"><h2>Live statistics</h2><div class="metric-grid"><div><strong id="bitrate">—</strong><small>Actual-time bitrate · kbps</small></div><div><strong id="bitrate-30">—</strong><small>30 FPS bitrate · kbps</small></div><div><strong id="fps">—</strong><small>Processed frames · FPS</small></div><div><strong id="encode-time">—</strong><small>Encode time · ms</small></div><div><strong id="decode-time">—</strong><small>Decode time · ms</small></div><div><strong id="frame-size">—</strong><small>Bitstream size · B</small></div><div><strong id="psnr">—</strong><small>YUV PSNR · dB</small></div></div><p class="fine">Both bitrates use the actual rANS bitstream size. The 30 FPS value assumes the processed frames are played at 30 FPS.</p></div></section>
+    <section class="lower"><div class="panel settings"><h2>Codec settings</h2>
+      <label>Video resolution<select id="resolution"><option value="360">360p · 640 × 360</option><option value="540">540p · 960 × 540</option><option value="720">720p · 1280 × 720</option><option value="1080">1080p · 1920 × 1080</option></select></label>
+      <label>Compute device<select id="backend"><option value="webgpu">GPU · WebGPU</option><option value="wasm">CPU · WebAssembly</option></select></label>
+      <label>Rate mode<select id="rate-mode"><option value="cq">Fixed QP</option><option value="cbr">CBR · target bitrate</option></select></label>
+      <label id="target-setting" class="hidden">Target bitrate (kbps)<input id="target-kbps" type="number" min="25" max="20000" step="25" value="300"></label>
+      <label id="qpi-setting">I-frame QP <output id="qpi-value">63</output><input id="qpi" type="range" min="0" max="63" value="63"></label>
+      <label id="qpp-setting">P-frame QP <output id="qpp-value">63</output><input id="qpp" type="range" min="0" max="63" value="63"></label>
+      <label>I-frame interval (frames)<input id="period" type="number" min="1" max="3000" value="150"></label>
+      <label>Compare codec<select id="compare-codec"><option value="">Off</option><option value="h264">H.264 / AVC</option><option value="hevc">H.265 / HEVC</option><option value="av1">AV1</option><option value="mlvc">MLVC</option><option value="vp8">VP8</option></select></label>
+      <p class="fine">Higher resolutions require more GPU memory and may run below real-time speed. Changing resolution or compute device reloads the model.</p>
+    </div><div class="panel metrics"><h2>Our codec · live statistics</h2><div class="metric-grid">
+      <div><strong id="target-actual">—</strong><small>Target / actual · kbps at 30 FPS</small></div>
+      <div><strong id="bitrate">—</strong><small>Actual-time bitrate · kbps</small></div>
+      <div><strong id="bitrate-30">—</strong><small>30 FPS bitrate · kbps</small></div>
+      <div><strong id="fps">—</strong><small>Processed frames · FPS</small></div>
+      <div><strong id="encode-time">—</strong><small>Encode time · ms</small></div>
+      <div><strong id="decode-time">—</strong><small>Decode time · ms</small></div>
+      <div><strong id="frame-size">—</strong><small>Bitstream size · B</small></div>
+      <div><strong id="psnr-y">—</strong><small>Y PSNR · dB</small></div>
+      <div><strong id="psnr-u">—</strong><small>U PSNR · dB</small></div>
+      <div><strong id="psnr-v">—</strong><small>V PSNR · dB</small></div>
+      <div><strong id="frame-qp">—</strong><small>Frame QP</small></div>
+    </div><p class="fine">Bitrates use the real rANS bitstream. CBR adjusts QP toward the selected target; extreme targets may be outside the model's QP range.</p><p class="fine" id="rate-limit-note"></p></div></section>
+    <section class="panel comparison-metrics hidden" id="comparison-metrics"><h2 id="comparison-metrics-title">Comparison codec · live statistics</h2><div class="metric-grid">
+      <div><strong id="compare-target-actual">—</strong><small>Target / actual · kbps at 30 FPS</small></div>
+      <div><strong id="compare-psnr-y">—</strong><small>Y PSNR · dB</small></div>
+      <div><strong id="compare-psnr-u">—</strong><small>U PSNR · dB</small></div>
+      <div><strong id="compare-psnr-v">—</strong><small>V PSNR · dB</small></div>
+    </div><p class="fine" id="comparison-note"></p></section>
   </main>
   <footer>VCD browser codec · ONNX Runtime Web · rANS</footer>
   <script type="module" src="./src/app.js"></script>

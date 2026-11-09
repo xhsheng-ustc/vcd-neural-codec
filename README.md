@@ -8,6 +8,8 @@ display the decoded video.
 
 Choose 360p, 540p, 720p, or 1080p and run on WebGPU or CPU/WebAssembly.
 Adjust I-frame QP, P-frame QP, and the I-frame interval in the page.
+CBR mode, Y/U/V PSNR, and side-by-side comparisons with H.264, HEVC, AV1,
+VP8, and MLVC are also available where the browser supports them.
 
 ONNX Runtime Web is distributed under the MIT license in
 [`vendor/ort/LICENSE`](vendor/ort/LICENSE).

@@ -116,6 +116,15 @@ export class PFrameCodec {
     this.refFeature = null;
   }
 
+  setQp(qp) {
+    if (this.qp === qp) return;
+    this.qp = qp;
+    for (const name of QUANT_NAMES) {
+      this.quant[name] = tensor([1, 192, 1, 1],
+                                flatNumbers(this.runtime.p.quantizers[name][qp]));
+    }
+  }
+
   static async load(ort, modelBase, qp = 32, backend = 'wasm', log = () => {}) {
     const format = await (await fetch(`${modelBase}/asset_format.json`)).json();
     const get = async filename => {
