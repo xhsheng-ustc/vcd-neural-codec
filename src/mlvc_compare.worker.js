@@ -9,7 +9,7 @@ import {rgbaToYuv444, yuv420Psnr} from './color.js';
 
 const GEOMETRY = {
   360: {dir: '640x368', modelW: 640, modelH: 368, videoW: 640, videoH: 360},
-  540: {dir: '1280x720', modelW: 1280, modelH: 720, videoW: 1280, videoH: 720},
+  540: {dir: '960x544', modelW: 960, modelH: 544, videoW: 960, videoH: 540},
   720: {dir: '1280x720', modelW: 1280, modelH: 720, videoW: 1280, videoH: 720},
   1080: {dir: '1920x1088', modelW: 1920, modelH: 1088, videoW: 1920, videoH: 1080},
 };
@@ -26,6 +26,7 @@ let controller = null;
 let geometry = null;
 let requestedResolution = 360;
 let comparisonNote = '';
+let actualBackend = '';
 let targetKbps = 100;
 let totalBits = 0;
 let frameCount = 0;
@@ -59,7 +60,7 @@ self.onmessage = async event => {
       if (!geometry) throw new Error('MLVC resolution unavailable');
       const cpuAt1080 = requestedResolution === 1080 && message.backend === 'webgpu';
       comparisonNote = requestedResolution === 540
-        ? 'MLVC uses its 720p model for 540p input'
+        ? 'MLVC encodes 960 × 540 directly with four rows of bottom edge padding.'
         : cpuAt1080 ? 'MLVC runs on CPU at 1080p to avoid GPU memory contention' : '';
       targetKbps = message.targetKbps;
       const wasmResponse = await fetch(new URL('../vendor/ort/ort-wasm-simd-threaded.jsep.wasm.gz', import.meta.url));
@@ -78,6 +79,7 @@ self.onmessage = async event => {
         device: message.backend === 'webgpu' && !cpuAt1080 ? 'gpu' : 'cpu',
         log: () => {},
       });
+      actualBackend = sessions.actualEp;
       const codec = new FrameCodec(rans, gaussian, z, PARAMS.latentChannels);
       controller = new RateController(geometry.videoW, geometry.videoH,
                                       targetKbps * 1000, 30);
@@ -86,7 +88,7 @@ self.onmessage = async event => {
         params: {...PARAMS, ...geometry, iframePeriod: message.intraPeriod || 150},
         rate: {mode: 'cbr', controller}});
       totalBits = frameCount = 0;
-      self.postMessage({type: 'ready', codec: 'mlvc', backend: sessions.actualEp,
+      self.postMessage({type: 'ready', codec: 'mlvc', backend: actualBackend,
         note: comparisonNote});
       return;
     }
@@ -101,7 +103,7 @@ self.onmessage = async event => {
       loop._rate.controller = controller;
       loop.reset();
       totalBits = frameCount = 0;
-      self.postMessage({type: 'ready', codec: 'mlvc',
+      self.postMessage({type: 'ready', codec: 'mlvc', backend: actualBackend,
         note: comparisonNote});
       return;
     }

@@ -19,6 +19,7 @@ let ready = false, busy = false, cameraStream = null, cameraTimer = null;
 let totalBytes = 0, totalFrames = 0, captureStartedAt = 0, lastFrameAt = 0;
 let compareWorker = null, compareReady = false, compareBusy = false;
 let compareFrameId = 0, compareTarget = 300;
+let compareBackend = '';
 
 $('resolution').value = String(resolution);
 $('source-size').textContent = `SOURCE · ${WIDTH} × ${HEIGHT}`;
@@ -49,6 +50,7 @@ function setComparison() {
   compareWorker?.terminate();
   compareWorker = null;
   compareReady = compareBusy = false;
+  compareBackend = '';
   compareFrameId = 0;
   const codec = $('compare-codec').value;
   const active = Boolean(codec);
@@ -75,13 +77,16 @@ function setComparison() {
     if (message.type === 'ready') {
       compareReady = true;
       compareBusy = false;
+      compareBackend = message.backend
+        ? (message.backend === 'wasm' ? 'CPU / WASM' : message.backend.toUpperCase())
+        : codec === 'mlvc' ? compareBackend : 'WEBCODECS';
       $('compare-status').textContent = 'Ready';
       $('comparison-note').textContent = message.note || '';
     } else if (message.type === 'frame') {
       compareBusy = false;
       comparisonCtx.putImageData(new ImageData(
         new Uint8ClampedArray(message.rgba), WIDTH, HEIGHT), 0, 0);
-      $('compare-status').textContent = `Frame ${message.frames}`;
+      $('compare-status').textContent = `Frame ${message.frames} · ${compareBackend}`;
       $('compare-target-actual').textContent =
         `${message.targetKbps.toFixed(0)} / ${message.actualKbps.toFixed(1)}`;
       $('compare-psnr-y').textContent = formatPsnr(message.psnrY);
