@@ -1,6 +1,7 @@
 const SIZES = {360: [640, 360], 540: [960, 540],
   720: [1280, 720], 1080: [1920, 1080]};
 const $ = id => document.getElementById(id);
+const isMlvcCodec = codec => codec === 'mlvc' || codec === 'mlvc-perceptual';
 const params = new URL(location.href).searchParams;
 const resolution = SIZES[params.get('resolution')] ? Number(params.get('resolution')) : 540;
 const [WIDTH, HEIGHT] = SIZES[resolution];
@@ -20,6 +21,7 @@ let totalBytes = 0, totalFrames = 0, captureStartedAt = 0, lastFrameAt = 0;
 let compareWorker = null, compareReady = false, compareBusy = false;
 let compareFrameId = 0, compareTarget = 300;
 let compareBackend = '';
+let pendingOwnFrame = null;
 
 $('resolution').value = String(resolution);
 $('source-size').textContent = `SOURCE · ${WIDTH} × ${HEIGHT}`;
@@ -47,6 +49,7 @@ function resetStatistics() {
 }
 
 function setComparison() {
+  if (pendingOwnFrame) flushPendingOwnFrame();
   compareWorker?.terminate();
   compareWorker = null;
   compareReady = compareBusy = false;
@@ -67,7 +70,7 @@ function setComparison() {
                      'compare-psnr-u', 'compare-psnr-v', 'compare-qp']) $(id).textContent = '—';
   comparisonCtx.clearRect(0, 0, WIDTH, HEIGHT);
   compareTarget = rateTarget();
-  const workerPath = codec === 'mlvc' ? './src/mlvc_compare.worker.js'
+  const workerPath = isMlvcCodec(codec) ? './src/mlvc_compare.worker.js'
     : './src/webcodecs_compare.worker.js';
   compareWorker = new Worker(workerPath, {type: 'module'});
   const thisWorker = compareWorker;
@@ -79,7 +82,7 @@ function setComparison() {
       compareBusy = false;
       compareBackend = message.backend
         ? (message.backend === 'wasm' ? 'CPU / WASM' : message.backend.toUpperCase())
-        : codec === 'mlvc' ? compareBackend : 'WEBCODECS';
+        : isMlvcCodec(codec) ? compareBackend : 'WEBCODECS';
       $('compare-status').textContent = 'Ready';
       $('comparison-note').textContent = message.note || '';
     } else if (message.type === 'frame') {
@@ -96,20 +99,26 @@ function setComparison() {
         ? String(message.qp) : (message.rateMode === 'constant' ? 'Browser CBR' : 'Browser VBR');
       $('compare-qp-label').textContent = message.codec === 'mlvc'
         ? 'MLVC q-index' : 'Encoder QP / mode';
+      flushPendingOwnFrame();
     } else if (message.type === 'skipped') {
       compareBusy = false;
+      flushPendingOwnFrame();
     } else if (message.type === 'error') {
       compareBusy = false;
+      compareReady = false;
       $('compare-status').textContent = 'Unavailable';
       $('comparison-note').textContent = message.message.split('\n')[0];
       console.error(message.message);
+      flushPendingOwnFrame();
     }
   };
   thisWorker.onerror = event => {
     if (thisWorker === compareWorker) {
       compareBusy = false;
+      compareReady = false;
       $('compare-status').textContent = 'Unavailable';
       $('comparison-note').textContent = event.message;
+      flushPendingOwnFrame();
     }
   };
   thisWorker.postMessage({type: 'init', codec, width: WIDTH, height: HEIGHT,
@@ -124,7 +133,7 @@ function resetComparison() {
   compareTarget = rateTarget();
   for (const id of ['compare-target-actual', 'compare-psnr-y',
                      'compare-psnr-u', 'compare-psnr-v', 'compare-qp']) $(id).textContent = '—';
-  compareWorker.postMessage($('compare-codec').value === 'mlvc'
+  compareWorker.postMessage(isMlvcCodec($('compare-codec').value)
     ? {type: 'reset'} : {type: 'init', codec: $('compare-codec').value,
       width: WIDTH, height: HEIGHT, targetKbps: compareTarget});
 }
@@ -141,20 +150,33 @@ function setButtons() {
   $('resolution').disabled = Boolean(cameraStream);
 }
 
+function postOwnFrame(data) {
+  worker.postMessage({type: 'frame', rgba: data, qpi: $('qpi').value,
+    qpp: $('qpp').value, intraPeriod: $('period').value,
+    mode: $('rate-mode').value, targetKbps: rateTarget()}, [data]);
+}
+
+function flushPendingOwnFrame() {
+  if (!pendingOwnFrame) return;
+  const data = pendingOwnFrame;
+  pendingOwnFrame = null;
+  postOwnFrame(data);
+}
+
 function sendFrame(rgba) {
   if (!ready || busy) return;
   busy = true;
   const data = rgba.buffer.slice(rgba.byteOffset, rgba.byteOffset + rgba.byteLength);
-  const mlvcCompare = $('compare-codec').value === 'mlvc';
+  const mlvcCompare = isMlvcCodec($('compare-codec').value);
   if (compareWorker && compareReady && (!mlvcCompare || !compareBusy)) {
     const comparisonData = data.slice(0);
     if (mlvcCompare) compareBusy = true;
+    if (mlvcCompare && resolution === 1080) pendingOwnFrame = data;
     compareWorker.postMessage({type: 'frame', rgba: comparisonData,
       width: WIDTH, height: HEIGHT, frameId: compareFrameId++}, [comparisonData]);
+    if (pendingOwnFrame) return;
   }
-  worker.postMessage({type: 'frame', rgba: data, qpi: $('qpi').value,
-    qpp: $('qpp').value, intraPeriod: $('period').value,
-    mode: $('rate-mode').value, targetKbps: rateTarget()}, [data]);
+  postOwnFrame(data);
 }
 
 function captureCamera() {
