@@ -69,7 +69,7 @@ async function processFrame(message) {
     forceI = true;
   }
   if (mode === 'cbr') {
-    const target = Math.min(20000, Math.max(25, Number(message.targetKbps) || 300));
+    const target = Math.min(20000, Math.max(25, Number(message.targetKbps) || 100));
     if (!rateController || rateController.targetKbps !== target) {
       rateController = new RateController(target, previousQpi, previousQpp);
       forceI = true;

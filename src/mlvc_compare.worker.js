@@ -26,7 +26,7 @@ let controller = null;
 let geometry = null;
 let requestedResolution = 360;
 let comparisonNote = '';
-let targetKbps = 300;
+let targetKbps = 100;
 let totalBits = 0;
 let frameCount = 0;
 let inputCanvas, inputContext, modelCanvas, modelContext;
@@ -91,7 +91,7 @@ self.onmessage = async event => {
       return;
     }
     if (message.type === 'target' && controller) {
-      targetKbps = Math.min(20000, Math.max(25, Number(message.targetKbps) || 300));
+      targetKbps = Math.min(20000, Math.max(25, Number(message.targetKbps) || 100));
       controller.configure(targetKbps * 1000, 30);
       return;
     }
@@ -129,7 +129,8 @@ self.onmessage = async event => {
       self.postMessage({type: 'frame', codec: 'mlvc', rgba: rgba.buffer,
         bits: totalBits, frames: frameCount, targetKbps,
         actualKbps: totalBits * 30 / frameCount / 1000,
-        psnrY, psnrU, psnrV, dropped: result.dropped}, [rgba.buffer]);
+        psnrY, psnrU, psnrV, qp: result.qIndex, rateMode: 'mlvc-cbr',
+        dropped: result.dropped}, [rgba.buffer]);
     }
   } catch (error) {
     self.postMessage({type: 'error', message: error.stack || String(error)});

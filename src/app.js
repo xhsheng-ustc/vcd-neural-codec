@@ -2,7 +2,7 @@ const SIZES = {360: [640, 360], 540: [960, 540],
   720: [1280, 720], 1080: [1920, 1080]};
 const $ = id => document.getElementById(id);
 const params = new URL(location.href).searchParams;
-const resolution = SIZES[params.get('resolution')] ? Number(params.get('resolution')) : 360;
+const resolution = SIZES[params.get('resolution')] ? Number(params.get('resolution')) : 540;
 const [WIDTH, HEIGHT] = SIZES[resolution];
 const input = $('input-view'), output = $('output-view');
 input.width = output.width = WIDTH;
@@ -27,7 +27,7 @@ $('comparison-size').textContent = `COMPARISON · ${WIDTH} × ${HEIGHT}`;
 
 function rateTarget() {
   if ($('rate-mode').value === 'cbr') {
-    return Math.min(20000, Math.max(25, Number($('target-kbps').value) || 300));
+    return Math.min(20000, Math.max(25, Number($('target-kbps').value) || 100));
   }
   return Math.min(20000, Math.max(25, Number($('bitrate-30').textContent) || 300));
 }
@@ -62,7 +62,7 @@ function setComparison() {
   $('compare-status').textContent = 'Loading';
   $('comparison-note').textContent = '';
   for (const id of ['compare-target-actual', 'compare-psnr-y',
-                     'compare-psnr-u', 'compare-psnr-v']) $(id).textContent = '—';
+                     'compare-psnr-u', 'compare-psnr-v', 'compare-qp']) $(id).textContent = '—';
   comparisonCtx.clearRect(0, 0, WIDTH, HEIGHT);
   compareTarget = rateTarget();
   const workerPath = codec === 'mlvc' ? './src/mlvc_compare.worker.js'
@@ -87,6 +87,10 @@ function setComparison() {
       $('compare-psnr-y').textContent = formatPsnr(message.psnrY);
       $('compare-psnr-u').textContent = formatPsnr(message.psnrU);
       $('compare-psnr-v').textContent = formatPsnr(message.psnrV);
+      $('compare-qp').textContent = Number.isInteger(message.qp)
+        ? String(message.qp) : (message.rateMode === 'constant' ? 'Browser CBR' : 'Browser VBR');
+      $('compare-qp-label').textContent = message.codec === 'mlvc'
+        ? 'MLVC q-index' : 'Encoder QP / mode';
     } else if (message.type === 'skipped') {
       compareBusy = false;
     } else if (message.type === 'error') {
@@ -114,7 +118,7 @@ function resetComparison() {
   compareFrameId = 0;
   compareTarget = rateTarget();
   for (const id of ['compare-target-actual', 'compare-psnr-y',
-                     'compare-psnr-u', 'compare-psnr-v']) $(id).textContent = '—';
+                     'compare-psnr-u', 'compare-psnr-v', 'compare-qp']) $(id).textContent = '—';
   compareWorker.postMessage($('compare-codec').value === 'mlvc'
     ? {type: 'reset'} : {type: 'init', codec: $('compare-codec').value,
       width: WIDTH, height: HEIGHT, targetKbps: compareTarget});
@@ -277,6 +281,6 @@ for (const name of ['qpi', 'qpp']) {
 }
 
 setButtons();
-const initialBackend = params.get('backend') || (navigator.gpu ? 'webgpu' : 'wasm');
+const initialBackend = params.get('backend') || 'webgpu';
 $('backend').value = initialBackend;
 worker.postMessage({type: 'init', backend: initialBackend, resolution});
