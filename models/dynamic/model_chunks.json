@@ -1,13 +1,1 @@
-{
-  "i_enc": [
-    "i_enc.part00",
-    "i_enc.part01",
-    "i_enc.part02"
-  ],
-  "i_dec": [
-    "i_dec.part00",
-    "i_dec.part01",
-    "i_dec.part02",
-    "i_dec.part03"
-  ]
-}
+{}
