@@ -15,8 +15,8 @@ ort.env.wasm.numThreads = 1;
 let iEncoder, iDecoder, pEncoder, pDecoder;
 let backend = 'wasm';
 let frameNumber = 0;
-let previousQpi = 32;
-let previousQpp = 32;
+let previousQpi = 63;
+let previousQpp = 63;
 let forceI = true;
 
 function log(message) { self.postMessage({type: 'progress', message}); }
@@ -33,22 +33,22 @@ async function initialize(requested, resolution) {
       compressed.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
   }
   try {
-    const i = await IFrameCodec.load(ort, BASE, 32, backend, log);
-    const p = await PFrameCodec.load(ort, BASE, 32, backend, log);
+    const i = await IFrameCodec.load(ort, BASE, 63, backend, log);
+    const p = await PFrameCodec.load(ort, BASE, 63, backend, log);
     iEncoder = i;
-    iDecoder = new IFrameCodec(ort, i.sessions, i.runtime, 32);
+    iDecoder = new IFrameCodec(ort, i.sessions, i.runtime, 63);
     pEncoder = p;
-    pDecoder = new PFrameCodec(ort, p.sessions, p.runtime, 32);
+    pDecoder = new PFrameCodec(ort, p.sessions, p.runtime, 63);
   } catch (error) {
     if (requested !== 'webgpu') throw error;
     log(`WebGPU failed; switching to CPU: ${error.message}`);
     backend = 'wasm';
-    const i = await IFrameCodec.load(ort, BASE, 32, backend, log);
-    const p = await PFrameCodec.load(ort, BASE, 32, backend, log);
+    const i = await IFrameCodec.load(ort, BASE, 63, backend, log);
+    const p = await PFrameCodec.load(ort, BASE, 63, backend, log);
     iEncoder = i;
-    iDecoder = new IFrameCodec(ort, i.sessions, i.runtime, 32);
+    iDecoder = new IFrameCodec(ort, i.sessions, i.runtime, 63);
     pEncoder = p;
-    pDecoder = new PFrameCodec(ort, p.sessions, p.runtime, 32);
+    pDecoder = new PFrameCodec(ort, p.sessions, p.runtime, 63);
   }
   frameNumber = 0;
   forceI = true;
@@ -58,7 +58,7 @@ async function initialize(requested, resolution) {
 async function processFrame(message) {
   const qpi = Math.min(63, Math.max(0, Number(message.qpi) || 0));
   const qpp = Math.min(63, Math.max(0, Number(message.qpp) || 0));
-  const period = Math.max(1, Math.floor(Number(message.intraPeriod) || 300));
+  const period = Math.max(1, Math.floor(Number(message.intraPeriod) || 150));
   if (qpi !== previousQpi || qpp !== previousQpp) {
     iEncoder = new IFrameCodec(ort, iEncoder.sessions, iEncoder.runtime, qpi);
     iDecoder = new IFrameCodec(ort, iDecoder.sessions, iDecoder.runtime, qpi);
