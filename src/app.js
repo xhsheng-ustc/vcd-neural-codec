@@ -12,7 +12,7 @@ const outputCtx = output.getContext('2d');
 const camera = $('camera');
 const worker = new Worker('./src/codec.worker.js', {type: 'module'});
 let ready = false, busy = false, cameraStream = null, cameraTimer = null;
-let totalBytes = 0, captureStartedAt = 0, lastFrameAt = 0;
+let totalBytes = 0, totalFrames = 0, captureStartedAt = 0, lastFrameAt = 0;
 
 $('resolution').value = String(resolution);
 $('source-size').textContent = `SOURCE · ${WIDTH} × ${HEIGHT}`;
@@ -47,8 +47,10 @@ function captureCamera() {
 function updateMetrics(message) {
   const now = performance.now();
   totalBytes += message.bytes;
+  totalFrames++;
   const elapsedSeconds = Math.max((now - captureStartedAt) / 1000, 0.001);
   $('bitrate').textContent = (totalBytes * 8 / elapsedSeconds / 1000).toFixed(1);
+  $('bitrate-30').textContent = (totalBytes * 8 * 30 / totalFrames / 1000).toFixed(1);
   $('fps').textContent = lastFrameAt ? (1000 / (now - lastFrameAt)).toFixed(2) : '—';
   lastFrameAt = now;
   $('encode-time').textContent = message.encodeMs.toFixed(0);
@@ -92,7 +94,7 @@ $('camera-start').onclick = async () => {
     const settings = cameraStream.getVideoTracks()[0].getSettings();
     $('source-tag').textContent = `Camera ${settings.width || ''} × ${settings.height || ''}`;
     worker.postMessage({type: 'forceI'});
-    totalBytes = captureStartedAt = lastFrameAt = 0;
+    totalBytes = totalFrames = captureStartedAt = lastFrameAt = 0;
     captureStartedAt = performance.now();
     cameraTimer = setInterval(captureCamera, 33);
     status('Camera active', 'ready');
